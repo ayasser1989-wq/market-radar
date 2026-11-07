@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="refresh" content="300">
+<title>رادار الأسواق</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow trading column — status strip, radar field, live signal feed, ranked list, bottom sheet for detail */
+:root{
+  --bg:#0b0710; --panel:#140d1b; --panel-2:#1c1325; --line:#2b2035;
+  --fg:#f1e9f5; --muted:#9b8ca8; --accent:#ff4fa3;
+  --up:#3ee6a4; --down:#ff6b5e; --warn:#ffc04d;
+  --sans:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--sans);
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding-top:14px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.up{color:var(--up)} .down{color:var(--down)} .muted{color:var(--muted)}
+
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+h1{margin:0;font-size:24px;font-weight:700;letter-spacing:0}
+h1 i{font-style:normal;color:var(--accent)}
+.stamp{font-size:12px;color:var(--muted);text-align:left}
+.stamp b{display:block;color:var(--fg);font:600 15px var(--mono)}
+.demo{background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);
+  color:var(--warn);padding:8px 12px;border-radius:8px;font-size:13px}
+
+.mkts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mkt{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.mkt-top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.mkt-name{font-weight:500;font-size:14px}
+.pill{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.live{color:var(--up);border-color:color-mix(in srgb,var(--up) 50%,transparent)}
+.pill.live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-inline-end:5px;vertical-align:1px;animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.25}}
+.avg{font:600 20px var(--mono)}
+.breadth{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line);direction:ltr}
+.breadth span:first-child{background:var(--up)} .breadth span:last-child{background:var(--down);margin-left:auto}
+.bcount{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+
+section{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline}
+h2{margin:0;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.hint{font-size:11px;color:var(--muted)}
+
+.radar{background:radial-gradient(120% 90% at 50% 40%,color-mix(in srgb,var(--accent) 9%,var(--panel)),var(--panel));
+  border:1px solid var(--line);border-radius:12px;padding:6px}
+.radar svg{display:block;width:100%;height:auto}
+.radar text{font-family:var(--mono);font-size:9px;fill:var(--muted)}
+.dot{cursor:pointer;transition:opacity .2s}
+.dot:focus{outline:none}
+.dot:focus-visible circle.core{stroke:var(--fg);stroke-width:2}
+.dimmed .dot{opacity:.25} .dimmed .dot.on{opacity:1}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 13px var(--sans);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:99px;padding:6px 14px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1a0712}
+.chip:focus-visible,select:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.feed{display:flex;flex-direction:column;gap:8px}
+.alert{display:grid;grid-template-columns:4px 1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px 10px;cursor:pointer}
+.alert .bar{align-self:stretch;border-radius:2px}
+.alert .t{font-weight:700} .alert .why{font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px;padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center}
+
+.list-tools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:13px var(--sans)}
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 58px 76px 62px;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer;background:none;color:inherit;font:inherit;text-align:inherit;width:100%}
+.row:first-child{border-top:0}
+.row:hover{background:var(--panel-2)}
+.who{min-width:0}
+.who .s{font-weight:700;display:flex;gap:6px;align-items:center}
+.who .n{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flag{font:600 9px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.sigdot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.px{text-align:left}
+.px .p{font:600 14px var(--mono)}
+.px .c{font:500 12px var(--mono)}
+.spark{width:58px;height:26px}
+.cell{text-align:left;font:600 14px var(--mono);white-space:nowrap}
+.cell small{display:block;font:400 10px var(--sans);color:var(--muted);text-align:left}
+.cell.c{font-weight:500;font-size:13px}
+.lhead{display:grid;grid-template-columns:minmax(0,1fr) 58px 76px 62px;gap:10px;padding:8px 12px;font-size:11px;color:var(--muted);background:var(--panel-2);border-bottom:1px solid var(--line)}
+.lhead span:nth-child(n+3){text-align:left}
+
+.sheet-bg{position:fixed;inset:0;background:rgb(0 0 0 / .55);z-index:20}
+.sheet{position:fixed;inset:auto 0 0 0;z-index:21;background:var(--panel-2);border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));max-height:85vh;overflow:auto}
+.sheet-in{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.sh-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sh-top h3{margin:0;font-size:20px}
+.close{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;width:34px;height:34px;font-size:18px;cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat small{display:block;font-size:11px;color:var(--muted)}
+.stat b{font:600 15px var(--mono)}
+.range{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.track{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--down),var(--warn),var(--up));direction:ltr}
+.track i{position:absolute;top:-4px;width:3px;height:14px;background:var(--fg);border-radius:2px}
+.sigs{display:flex;flex-direction:column;gap:6px}
+.sig{font-size:14px;padding:8px 10px;border-radius:8px;background:var(--panel);border-inline-start:3px solid var(--line)}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{color:var(--accent);font-size:13px}
+footer{font-size:12px;color:var(--muted);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>رادار <i>الأسواق</i></h1>
+    <div class="stamp">آخر مسح<b id="upd" class="num">—</b></div>
+  </header>
+  <div id="demo" class="demo" hidden>بيانات تجريبية عشوائية لاختبار الشكل فقط — ليست أسعارًا حقيقية.</div>
+
+  <div class="mkts" id="mkts"></div>
+
+  <section>
+    <div class="sec-head"><h2>خريطة الرادار</h2><span class="hint">أفقي: RSI · عمودي: تغيّر اليوم · الحجم: نشاط التداول</span></div>
+    <div class="radar" id="radar"></div>
+  </section>
+
+  <div class="chips" role="group" aria-label="تصفية">
+    <button class="chip" id="f-all" data-f="all" aria-pressed="true">الكل</button>
+    <button class="chip" id="f-us" data-f="US" aria-pressed="false">أمريكا</button>
+    <button class="chip" id="f-sa" data-f="SA" aria-pressed="false">السعودية</button>
+    <button class="chip" id="f-sig" data-f="sig" aria-pressed="false">بإشارات فقط</button>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>الإشارات الآن</h2><span class="hint num" id="sigcount"></span></div>
+    <div class="feed" id="feed"></div>
+  </section>
+
+  <section>
+    <div class="list-tools">
+      <h2>كل الأسهم</h2>
+      <select id="sort" aria-label="ترتيب">
+        <option value="move">الأكثر حركة</option>
+        <option value="up">الأعلى ارتفاعًا</option>
+        <option value="down">الأكثر انخفاضًا</option>
+        <option value="rsi">RSI من الأعلى</option>
+        <option value="vol">نشاط التداول</option>
+      </select>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <footer>الأسعار من Yahoo Finance ومتأخرة حوالي 15 دقيقة. الإشارات أدوات فرز فنية وليست توصية شراء أو بيع. الصفحة تتحدّث تلقائيًا كل 5 دقائق.</footer>
+</div>
+
+<div class="sheet-bg" id="sheetbg" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-title" hidden><div class="sheet-in" id="sheetin"></div></div>
+
+<script>
+const DATA = {"updated": "2026-11-07T10:39+03:00", "demo": true, "markets": {"US": {"name": "السوق الأمريكي", "open": false, "cur": "$"}, "SA": {"name": "السوق السعودي", "open": false, "cur": "ر.س"}}, "stocks": [{"sym": "AAPL", "ticker": "AAPL", "name": "Apple", "mkt": "US", "price": 26.38, "chg": 2.45, "rsi": 40.1, "pct50": -9.9, "volx": 2.02, "hi52": 49.77, "lo52": 24.87, "date": "2026-11-06", "spark": [28.52, 28.72, 28.9, 29.99, 29.26, 29.74, 29.71, 29.71, 28.96, 28.73, 29.13, 29.1, 29.15, 29.01, 29.63, 29.63, 28.49, 28.15, 27.18, 25.65, 25.41, 26.04, 26.07, 25.54, 25.12, 25.65, 25.73, 25.76, 25.75, 26.38], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.0⁩ من المتوسط", "dir": "up"}]}, {"sym": "MSFT", "ticker": "MSFT", "name": "Microsoft", "mkt": "US", "price": 74.82, "chg": -2.72, "rsi": 41.5, "pct50": -1.9, "volx": 2.21, "hi52": 97.46, "lo52": 66.67, "date": "2026-11-06", "spark": [76.47, 76.31, 74.78, 74.24, 77.3, 77.15, 76.77, 77.46, 78.4, 76.8, 76.46, 77.69, 78.01, 78.14, 80.3, 79.28, 79.34, 78.55, 80.64, 77.8, 76.82, 76.04, 76.91, 77.7, 79.63, 77.35, 78.35, 77.89, 76.91, 74.82], "signals": [{"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}, {"k": "vol", "label": "حجم تداول ⁦×2.2⁩ من المتوسط", "dir": "down"}]}, {"sym": "NVDA", "ticker": "NVDA", "name": "NVIDIA", "mkt": "US", "price": 215.58, "chg": 0.78, "rsi": 75.7, "pct50": 17.9, "volx": 1.3, "hi52": 216.05, "lo52": 131.14, "date": "2026-11-06", "spark": [174.94, 178.0, 182.34, 183.66, 181.92, 180.4, 182.29, 184.44, 189.39, 191.06, 194.99, 200.65, 201.5, 196.44, 192.56, 187.88, 193.59, 190.9, 195.43, 197.76, 204.22, 208.21, 208.09, 207.61, 208.19, 209.12, 207.4, 207.54, 213.91, 215.58], "signals": [{"k": "rsi_high", "label": "تشبّع شرائي RSI 76", "dir": "down"}]}, {"sym": "GOOGL", "ticker": "GOOGL", "name": "Alphabet", "mkt": "US", "price": 148.7, "chg": 1.72, "rsi": 63.1, "pct50": 5.8, "volx": 2.85, "hi52": 217.52, "lo52": 124.72, "date": "2026-11-06", "spark": [127.94, 129.57, 129.46, 125.98, 130.29, 128.35, 128.98, 129.5, 132.89, 131.87, 134.34, 132.62, 135.39, 133.6, 132.79, 137.46, 138.31, 138.65, 144.42, 145.43, 143.38, 145.35, 142.35, 145.34, 148.6, 147.14, 145.55, 146.08, 146.18, 148.7], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.9⁩ من المتوسط", "dir": "up"}]}, {"sym": "AMZN", "ticker": "AMZN", "name": "Amazon", "mkt": "US", "price": 196.72, "chg": -4.23, "rsi": 41.7, "pct50": -2.6, "volx": 0.79, "hi52": 309.86, "lo52": 184.9, "date": "2026-11-06", "spark": [190.06, 186.77, 190.64, 190.43, 193.57, 192.53, 192.62, 191.87, 193.31, 196.04, 196.72, 194.18, 191.31, 196.94, 195.79, 194.6, 199.63, 203.4, 205.19, 203.55, 212.17, 213.5, 215.43, 214.58, 209.01, 203.88, 205.2, 206.48, 205.41, 196.72], "signals": [{"k": "move", "label": "حركة قوية ⁦-4.2%⁩", "dir": "down"}, {"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}]}, {"sym": "META", "ticker": "META", "name": "Meta", "mkt": "US", "price": 303.86, "chg": 1.85, "rsi": 45.7, "pct50": -0.9, "volx": 0.69, "hi52": 424.0, "lo52": 280.05, "date": "2026-11-06", "spark": [297.89, 299.15, 303.44, 301.37, 299.52, 296.12, 301.51, 303.53, 302.41, 300.78, 303.96, 305.89, 301.5, 311.11, 312.71, 312.93, 321.53, 327.68, 327.33, 330.67, 324.53, 320.97, 308.33, 315.34, 304.9, 308.82, 304.39, 299.22, 298.33, 303.86], "signals": []}, {"sym": "AVGO", "ticker": "AVGO", "name": "Broadcom", "mkt": "US", "price": 537.61, "chg": -4.38, "rsi": 43.2, "pct50": 1.6, "volx": 4.09, "hi52": 598.12, "lo52": 345.07, "date": "2026-11-06", "spark": [515.79, 512.21, 513.25, 505.81, 520.11, 540.8, 537.16, 541.19, 539.05, 551.59, 556.07, 556.99, 554.9, 556.31, 546.52, 553.35, 546.43, 551.86, 553.3, 564.46, 564.43, 575.08, 565.75, 572.15, 569.99, 572.14, 573.03, 582.92, 562.26, 537.61], "signals": [{"k": "move", "label": "حركة قوية ⁦-4.4%⁩", "dir": "down"}, {"k": "vol", "label": "حجم تداول ⁦×4.1⁩ من المتوسط", "dir": "down"}]}, {"sym": "TSLA", "ticker": "TSLA", "name": "Tesla", "mkt": "US", "price": 100.7, "chg": -2.43, "rsi": 40.7, "pct50": -1.2, "volx": 1.38, "hi52": 111.12, "lo52": 51.86, "date": "2026-11-06", "spark": [100.58, 104.22, 102.33, 105.65, 104.01, 103.82, 105.66, 107.13, 107.94, 105.04, 105.99, 104.32, 109.53, 109.38, 110.02, 108.04, 107.38, 105.17, 107.31, 107.07, 108.43, 107.36, 106.66, 109.44, 107.81, 104.62, 105.65, 103.76, 103.2, 100.7], "signals": [{"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}]}, {"sym": "BRK-B", "ticker": "BRK-B", "name": "Berkshire Hathaway", "mkt": "US", "price": 96.97, "chg": 0.7, "rsi": 73.5, "pct50": 12.4, "volx": 0.53, "hi52": 112.39, "lo52": 71.88, "date": "2026-11-06", "spark": [85.39, 86.08, 87.22, 86.39, 86.74, 85.0, 82.93, 83.83, 83.81, 81.47, 80.29, 80.38, 82.72, 84.36, 85.64, 83.0, 82.91, 83.69, 84.35, 85.04, 84.75, 87.54, 89.96, 89.88, 88.37, 91.77, 90.93, 92.97, 96.3, 96.97], "signals": [{"k": "rsi_high", "label": "تشبّع شرائي RSI 73", "dir": "down"}]}, {"sym": "LLY", "ticker": "LLY", "name": "Eli Lilly", "mkt": "US", "price": 111.44, "chg": -0.6, "rsi": 32.7, "pct50": -13.3, "volx": 2.21, "hi52": 143.85, "lo52": 100.63, "date": "2026-11-06", "spark": [133.11, 135.23, 133.43, 135.81, 131.08, 128.48, 130.67, 130.2, 128.51, 129.26, 126.73, 126.79, 121.72, 120.61, 119.1, 120.15, 121.94, 119.97, 123.38, 121.95, 117.41, 112.38, 115.43, 115.14, 113.7, 112.07, 109.79, 112.38, 112.11, 111.44], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.2⁩ من المتوسط", "dir": "down"}]}, {"sym": "JPM", "ticker": "JPM", "name": "JPMorgan", "mkt": "US", "price": 207.44, "chg": 3.23, "rsi": 69.3, "pct50": 6.8, "volx": 1.68, "hi52": 247.87, "lo52": 165.92, "date": "2026-11-06", "spark": [194.94, 194.6, 190.06, 190.32, 188.73, 190.91, 190.86, 193.63, 192.37, 197.69, 189.9, 186.69, 188.59, 183.77, 186.46, 182.65, 183.19, 180.43, 179.24, 180.03, 179.92, 178.92, 186.23, 186.5, 183.51, 186.84, 189.86, 194.34, 200.95, 207.44], "signals": [{"k": "move", "label": "حركة قوية ⁦+3.2%⁩", "dir": "up"}]}, {"sym": "V", "ticker": "V", "name": "Visa", "mkt": "US", "price": 388.69, "chg": 3.37, "rsi": 63.2, "pct50": 5.4, "volx": 1.47, "hi52": 411.7, "lo52": 254.35, "date": "2026-11-06", "spark": [353.83, 363.91, 366.81, 363.63, 365.61, 364.24, 360.19, 364.4, 362.34, 354.13, 350.98, 351.14, 345.24, 354.06, 348.06, 360.15, 366.92, 361.66, 363.43, 372.19, 371.86, 364.89, 366.56, 380.9, 371.78, 376.47, 377.52, 377.69, 376.03, 388.69], "signals": [{"k": "move", "label": "حركة قوية ⁦+3.4%⁩", "dir": "up"}]}, {"sym": "MA", "ticker": "MA", "name": "Mastercard", "mkt": "US", "price": 295.83, "chg": -1.62, "rsi": 42.2, "pct50": -2.8, "volx": 2.61, "hi52": 330.19, "lo52": 240.77, "date": "2026-11-06", "spark": [312.92, 310.06, 302.54, 308.49, 310.04, 312.72, 313.7, 313.01, 308.72, 304.52, 306.94, 307.68, 316.82, 312.63, 310.0, 304.48, 312.11, 305.41, 309.7, 317.81, 317.09, 321.29, 309.42, 307.37, 298.5, 299.49, 299.61, 295.61, 300.7, 295.83], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.6⁩ من المتوسط", "dir": "down"}]}, {"sym": "XOM", "ticker": "XOM", "name": "Exxon Mobil", "mkt": "US", "price": 266.72, "chg": 1.31, "rsi": 45.3, "pct50": -0.7, "volx": 0.48, "hi52": 388.92, "lo52": 246.84, "date": "2026-11-06", "spark": [268.18, 267.81, 258.79, 262.06, 266.64, 272.06, 277.55, 277.08, 273.12, 270.59, 270.1, 271.72, 269.1, 269.01, 272.88, 274.13, 285.12, 295.83, 289.55, 286.33, 279.45, 273.44, 275.76, 270.65, 265.38, 263.8, 267.24, 265.26, 263.27, 266.72], "signals": []}, {"sym": "WMT", "ticker": "WMT", "name": "Walmart", "mkt": "US", "price": 60.76, "chg": -1.36, "rsi": 51.5, "pct50": 3.0, "volx": 3.09, "hi52": 63.21, "lo52": 40.61, "date": "2026-11-06", "spark": [56.5, 56.88, 57.81, 58.23, 57.48, 58.3, 58.56, 59.24, 60.51, 59.69, 59.65, 59.14, 58.37, 60.47, 61.53, 59.82, 60.35, 59.88, 61.15, 61.33, 61.25, 61.49, 61.99, 62.12, 61.99, 61.95, 62.58, 61.5, 61.6, 60.76], "signals": [{"k": "vol", "label": "حجم تداول ⁦×3.1⁩ من المتوسط", "dir": "down"}]}, {"sym": "UNH", "ticker": "UNH", "name": "UnitedHealth", "mkt": "US", "price": 206.29, "chg": 0.34, "rsi": 64.6, "pct50": 3.8, "volx": 0.69, "hi52": 209.14, "lo52": 96.02, "date": "2026-11-06", "spark": [203.78, 203.62, 202.03, 201.58, 204.58, 207.07, 204.81, 204.74, 205.43, 204.35, 204.61, 202.41, 200.19, 200.73, 197.49, 199.32, 199.01, 196.19, 194.45, 193.19, 193.0, 193.75, 193.4, 190.83, 196.04, 199.54, 200.29, 204.04, 205.58, 206.29], "signals": []}, {"sym": "COST", "ticker": "COST", "name": "Costco", "mkt": "US", "price": 99.82, "chg": -0.84, "rsi": 46.7, "pct50": -5.6, "volx": 1.88, "hi52": 172.07, "lo52": 92.41, "date": "2026-11-06", "spark": [112.0, 110.39, 110.09, 107.7, 106.87, 104.19, 105.31, 102.83, 104.01, 103.16, 102.51, 104.58, 104.69, 101.14, 101.95, 96.75, 97.12, 96.34, 93.89, 93.94, 93.34, 96.65, 95.81, 99.09, 101.46, 100.28, 98.74, 101.0, 100.66, 99.82], "signals": []}, {"sym": "ORCL", "ticker": "ORCL", "name": "Oracle", "mkt": "US", "price": 142.77, "chg": 1.21, "rsi": 50.6, "pct50": -4.9, "volx": 3.83, "hi52": 229.08, "lo52": 131.36, "date": "2026-11-06", "spark": [150.6, 154.08, 156.27, 154.26, 156.96, 156.54, 154.56, 155.69, 153.12, 148.83, 152.25, 147.31, 148.68, 144.64, 144.5, 143.94, 142.76, 137.26, 136.94, 136.79, 134.57, 134.36, 136.7, 134.92, 135.48, 132.69, 133.55, 135.02, 141.06, 142.77], "signals": [{"k": "vol", "label": "حجم تداول ⁦×3.8⁩ من المتوسط", "dir": "up"}]}, {"sym": "NFLX", "ticker": "NFLX", "name": "Netflix", "mkt": "US", "price": 391.0, "chg": 4.11, "rsi": 71.9, "pct50": 13.8, "volx": 1.5, "hi52": 381.05, "lo52": 212.56, "date": "2026-11-06", "spark": [317.04, 316.0, 315.41, 319.31, 312.92, 324.1, 330.82, 336.63, 333.17, 344.25, 342.61, 354.49, 361.9, 356.6, 354.19, 366.84, 374.03, 373.51, 375.41, 377.28, 372.58, 371.76, 367.88, 365.56, 369.17, 363.36, 368.66, 369.91, 375.55, 391.0], "signals": [{"k": "move", "label": "حركة قوية ⁦+4.1%⁩", "dir": "up"}, {"k": "rsi_high", "label": "تشبّع شرائي RSI 72", "dir": "down"}, {"k": "hi52", "label": "قمة جديدة لـ 52 أسبوعًا", "dir": "up"}]}, {"sym": "AMD", "ticker": "AMD", "name": "AMD", "mkt": "US", "price": 240.26, "chg": 3.45, "rsi": 49.6, "pct50": -1.1, "volx": 2.17, "hi52": 299.53, "lo52": 220.65, "date": "2026-11-06", "spark": [238.59, 233.67, 238.25, 231.41, 233.37, 227.52, 233.95, 237.73, 234.14, 232.17, 227.33, 227.05, 228.76, 239.82, 233.79, 239.2, 236.6, 237.77, 241.64, 244.05, 245.93, 245.0, 244.93, 245.58, 251.06, 244.29, 242.04, 236.48, 232.26, 240.26], "signals": [{"k": "move", "label": "حركة قوية ⁦+3.4%⁩", "dir": "up"}, {"k": "vol", "label": "حجم تداول ⁦×2.2⁩ من المتوسط", "dir": "up"}]}, {"sym": "PLTR", "ticker": "PLTR", "name": "Palantir", "mkt": "US", "price": 630.94, "chg": 0.81, "rsi": 60.1, "pct50": 6.8, "volx": 1.69, "hi52": 654.82, "lo52": 317.82, "date": "2026-11-06", "spark": [552.53, 566.12, 570.32, 556.59, 563.14, 553.66, 557.31, 571.15, 595.0, 595.28, 604.09, 608.53, 618.6, 591.09, 587.88, 592.1, 598.32, 591.07, 601.23, 614.72, 616.61, 615.1, 612.14, 614.79, 629.48, 648.33, 643.85, 633.99, 625.86, 630.94], "signals": []}, {"sym": "JNJ", "ticker": "JNJ", "name": "Johnson & Johnson", "mkt": "US", "price": 39.17, "chg": -0.56, "rsi": 64.8, "pct50": 5.6, "volx": 1.17, "hi52": 58.67, "lo52": 34.58, "date": "2026-11-06", "spark": [37.53, 35.59, 36.14, 36.47, 36.09, 36.94, 36.68, 36.75, 36.08, 36.29, 36.01, 35.69, 36.4, 36.54, 35.57, 36.02, 36.57, 36.03, 35.78, 35.82, 35.67, 35.75, 36.18, 35.86, 37.23, 36.76, 36.41, 37.73, 39.39, 39.17], "signals": []}, {"sym": "PG", "ticker": "PG", "name": "Procter & Gamble", "mkt": "US", "price": 104.55, "chg": -2.4, "rsi": 57.5, "pct50": 10.3, "volx": 2.8, "hi52": 123.4, "lo52": 83.07, "date": "2026-11-06", "spark": [89.81, 90.09, 90.73, 90.52, 88.88, 91.83, 93.39, 93.89, 95.6, 97.9, 97.62, 98.72, 98.21, 99.42, 99.03, 103.53, 102.93, 103.96, 104.9, 104.33, 106.18, 106.08, 105.37, 105.44, 104.09, 106.42, 107.7, 109.69, 107.12, 104.55], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.8⁩ من المتوسط", "dir": "down"}]}, {"sym": "HD", "ticker": "HD", "name": "Home Depot", "mkt": "US", "price": 164.49, "chg": -1.67, "rsi": 53.2, "pct50": -1.1, "volx": 0.43, "hi52": 194.73, "lo52": 139.61, "date": "2026-11-06", "spark": [162.81, 164.64, 164.97, 160.96, 159.1, 157.94, 156.92, 156.85, 163.37, 161.05, 161.49, 159.24, 157.42, 154.91, 154.26, 152.72, 153.72, 154.34, 151.83, 157.3, 153.97, 154.99, 161.32, 159.23, 163.17, 167.51, 168.57, 162.95, 167.28, 164.49], "signals": [{"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}]}, {"sym": "KO", "ticker": "KO", "name": "Coca-Cola", "mkt": "US", "price": 509.86, "chg": -3.8, "rsi": 74.4, "pct50": 21.2, "volx": 3.04, "hi52": 535.33, "lo52": 181.61, "date": "2026-11-06", "spark": [402.78, 411.26, 431.25, 432.16, 432.29, 443.37, 440.13, 437.33, 440.13, 443.99, 433.84, 436.71, 435.19, 435.88, 438.18, 437.61, 447.06, 451.96, 451.44, 453.06, 462.61, 470.23, 482.12, 482.05, 484.37, 503.32, 504.18, 520.82, 530.03, 509.86], "signals": [{"k": "move", "label": "حركة قوية ⁦-3.8%⁩", "dir": "down"}, {"k": "rsi_high", "label": "تشبّع شرائي RSI 74", "dir": "down"}, {"k": "vol", "label": "حجم تداول ⁦×3.0⁩ من المتوسط", "dir": "down"}]}, {"sym": "2222", "ticker": "2222.SR", "name": "أرامكو السعودية", "mkt": "SA", "price": 263.75, "chg": -9.07, "rsi": 32.6, "pct50": -6.0, "volx": 0.43, "hi52": 303.61, "lo52": 227.04, "date": "2026-11-06", "spark": [277.46, 275.18, 275.99, 275.08, 278.21, 279.12, 275.53, 273.5, 271.77, 273.73, 275.73, 272.03, 271.37, 273.03, 278.47, 279.9, 289.7, 290.06, 294.0, 292.58, 287.84, 288.6, 291.25, 293.11, 294.08, 292.63, 288.76, 287.49, 290.05, 263.75], "signals": [{"k": "move", "label": "حركة قوية ⁦-9.1%⁩", "dir": "down"}, {"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}]}, {"sym": "1120", "ticker": "1120.SR", "name": "مصرف الراجحي", "mkt": "SA", "price": 421.35, "chg": -1.54, "rsi": 26.4, "pct50": -10.5, "volx": 0.82, "hi52": 534.39, "lo52": 295.75, "date": "2026-11-06", "spark": [508.68, 500.59, 498.4, 496.17, 466.4, 474.02, 474.5, 473.33, 470.91, 471.68, 474.24, 464.05, 465.62, 467.09, 467.87, 456.39, 455.81, 446.2, 449.46, 460.48, 468.1, 465.87, 462.02, 457.99, 461.34, 456.52, 452.79, 433.85, 427.93, 421.35], "signals": [{"k": "rsi_low", "label": "تشبّع بيعي RSI 26", "dir": "up"}]}, {"sym": "1211", "ticker": "1211.SR", "name": "معادن", "mkt": "SA", "price": 402.93, "chg": 0.96, "rsi": 61.3, "pct50": 9.7, "volx": 1.39, "hi52": 406.32, "lo52": 286.51, "date": "2026-11-06", "spark": [374.42, 368.36, 375.79, 375.22, 382.72, 378.54, 378.83, 375.18, 378.6, 378.11, 385.93, 391.88, 395.02, 394.97, 393.06, 393.3, 398.85, 399.99, 402.3, 402.25, 401.93, 397.38, 384.44, 388.62, 392.76, 386.2, 399.89, 391.82, 399.11, 402.93], "signals": []}, {"sym": "1180", "ticker": "1180.SR", "name": "البنك الأهلي", "mkt": "SA", "price": 46.22, "chg": -0.21, "rsi": 58.3, "pct50": 5.5, "volx": 0.93, "hi52": 55.27, "lo52": 39.98, "date": "2026-11-06", "spark": [42.01, 43.34, 44.36, 44.0, 43.53, 44.33, 44.51, 44.08, 43.9, 44.15, 43.99, 43.79, 43.6, 42.46, 43.8, 44.76, 45.99, 45.88, 45.98, 46.46, 47.14, 45.63, 45.92, 45.11, 45.05, 44.52, 45.89, 46.34, 46.32, 46.22], "signals": []}, {"sym": "7010", "ticker": "7010.SR", "name": "إس تي سي", "mkt": "SA", "price": 202.61, "chg": -3.89, "rsi": 49.7, "pct50": 3.4, "volx": 0.89, "hi52": 218.83, "lo52": 102.72, "date": "2026-11-06", "spark": [193.82, 194.93, 198.91, 196.7, 194.46, 193.25, 191.08, 192.05, 189.92, 189.37, 190.9, 189.79, 194.09, 192.06, 189.73, 197.15, 202.91, 203.51, 206.92, 208.54, 206.97, 209.86, 211.36, 216.66, 209.94, 213.37, 214.37, 212.09, 210.81, 202.61], "signals": [{"k": "move", "label": "حركة قوية ⁦-3.9%⁩", "dir": "down"}]}, {"sym": "2010", "ticker": "2010.SR", "name": "سابك", "mkt": "SA", "price": 116.79, "chg": -2.2, "rsi": 34.9, "pct50": -14.4, "volx": 2.14, "hi52": 190.5, "lo52": 114.92, "date": "2026-11-06", "spark": [132.35, 135.18, 133.93, 133.64, 131.79, 130.05, 129.74, 126.49, 125.97, 122.1, 122.69, 119.11, 120.37, 122.42, 118.73, 120.02, 118.97, 121.31, 119.98, 119.19, 118.38, 120.9, 116.57, 118.0, 118.0, 116.77, 116.08, 117.85, 119.41, 116.79], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.1⁩ من المتوسط", "dir": "down"}]}, {"sym": "2082", "ticker": "2082.SR", "name": "أكوا باور", "mkt": "SA", "price": 295.92, "chg": -1.73, "rsi": 59.3, "pct50": 5.6, "volx": 0.85, "hi52": 305.46, "lo52": 171.05, "date": "2026-11-06", "spark": [273.48, 272.67, 277.05, 273.3, 276.08, 282.58, 279.85, 279.0, 282.73, 286.02, 288.47, 288.45, 281.07, 281.64, 275.77, 276.76, 265.95, 273.45, 283.5, 286.35, 282.61, 281.65, 286.74, 290.72, 287.69, 294.52, 298.96, 302.44, 301.13, 295.92], "signals": []}, {"sym": "1010", "ticker": "1010.SR", "name": "بنك الرياض", "mkt": "SA", "price": 688.38, "chg": 0.64, "rsi": 62.1, "pct50": 11.2, "volx": 0.75, "hi52": 708.89, "lo52": 253.79, "date": "2026-11-06", "spark": [593.58, 585.87, 591.78, 591.42, 600.44, 597.95, 622.08, 620.9, 645.13, 638.32, 646.12, 660.43, 647.26, 638.12, 644.2, 658.71, 676.08, 684.26, 698.46, 686.26, 682.93, 701.88, 696.91, 695.72, 676.82, 676.25, 659.54, 665.25, 684.0, 688.38], "signals": []}, {"sym": "4013", "ticker": "4013.SR", "name": "سليمان الحبيب", "mkt": "SA", "price": 266.9, "chg": -5.85, "rsi": 42.2, "pct50": -4.3, "volx": 1.7, "hi52": 390.03, "lo52": 250.23, "date": "2026-11-06", "spark": [266.83, 274.48, 274.35, 270.4, 269.83, 266.91, 277.67, 278.25, 275.73, 276.04, 283.22, 278.26, 269.9, 276.11, 278.98, 276.6, 276.04, 281.37, 267.89, 273.87, 272.85, 276.0, 275.58, 291.03, 287.65, 293.18, 279.67, 279.69, 283.48, 266.9], "signals": [{"k": "move", "label": "حركة قوية ⁦-5.9%⁩", "dir": "down"}, {"k": "x50_down", "label": "كسر متوسط 50 يوم هبوطًا", "dir": "down"}]}, {"sym": "1150", "ticker": "1150.SR", "name": "مصرف الإنماء", "mkt": "SA", "price": 241.32, "chg": -3.38, "rsi": 44.4, "pct50": -5.0, "volx": 0.98, "hi52": 350.75, "lo52": 229.97, "date": "2026-11-06", "spark": [262.14, 253.32, 253.13, 250.19, 242.05, 237.93, 233.41, 237.61, 238.59, 238.51, 233.09, 232.3, 235.05, 235.69, 240.17, 240.47, 243.45, 245.42, 242.89, 248.77, 250.35, 254.05, 249.19, 244.32, 243.49, 239.95, 242.59, 244.34, 249.75, 241.32], "signals": [{"k": "move", "label": "حركة قوية ⁦-3.4%⁩", "dir": "down"}]}, {"sym": "1060", "ticker": "1060.SR", "name": "البنك الأول", "mkt": "SA", "price": 59.85, "chg": -0.56, "rsi": 50.4, "pct50": 0.7, "volx": 2.39, "hi52": 68.33, "lo52": 43.4, "date": "2026-11-06", "spark": [59.17, 58.91, 59.18, 58.66, 59.34, 58.73, 58.17, 59.48, 58.76, 58.85, 59.53, 59.28, 60.33, 59.8, 60.98, 59.4, 58.08, 58.23, 59.81, 61.63, 60.79, 60.84, 60.4, 58.23, 59.07, 58.76, 60.29, 60.67, 60.19, 59.85], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.4⁩ من المتوسط", "dir": "down"}]}, {"sym": "5110", "ticker": "5110.SR", "name": "الكهرباء السعودية", "mkt": "SA", "price": 93.26, "chg": -0.15, "rsi": 66.1, "pct50": 8.2, "volx": 2.76, "hi52": 141.01, "lo52": 78.86, "date": "2026-11-06", "spark": [81.31, 83.1, 84.28, 83.67, 86.3, 88.86, 86.49, 83.13, 82.23, 82.91, 84.28, 85.27, 85.26, 86.72, 87.82, 87.15, 87.44, 89.1, 88.12, 87.16, 85.89, 88.14, 89.2, 90.55, 89.97, 89.94, 91.89, 91.46, 93.4, 93.26], "signals": [{"k": "vol", "label": "حجم تداول ⁦×2.8⁩ من المتوسط", "dir": "down"}]}, {"sym": "2020", "ticker": "2020.SR", "name": "سابك للمغذيات", "mkt": "SA", "price": 285.78, "chg": -4.85, "rsi": 59.1, "pct50": 6.5, "volx": 0.98, "hi52": 305.95, "lo52": 134.8, "date": "2026-11-06", "spark": [259.88, 262.05, 257.8, 255.9, 250.53, 250.64, 250.55, 250.69, 252.21, 257.23, 260.7, 255.71, 259.89, 255.57, 257.63, 258.38, 266.54, 266.39, 266.27, 265.3, 269.72, 271.55, 270.62, 275.0, 285.83, 294.58, 302.93, 300.46, 300.36, 285.78], "signals": [{"k": "move", "label": "حركة قوية ⁦-4.9%⁩", "dir": "down"}]}, {"sym": "4280", "ticker": "4280.SR", "name": "المملكة القابضة", "mkt": "SA", "price": 243.16, "chg": 0.96, "rsi": 38.6, "pct50": -6.0, "volx": 0.89, "hi52": 293.01, "lo52": 182.52, "date": "2026-11-06", "spark": [269.21, 265.86, 264.5, 263.89, 260.68, 263.8, 269.73, 264.05, 262.15, 260.75, 254.76, 249.25, 247.93, 244.34, 245.95, 249.78, 250.87, 252.41, 248.65, 246.31, 248.25, 251.01, 250.88, 253.54, 252.69, 247.85, 249.45, 247.86, 240.85, 243.16], "signals": []}, {"sym": "1050", "ticker": "1050.SR", "name": "البنك السعودي الفرنسي", "mkt": "SA", "price": 236.94, "chg": 2.05, "rsi": 70.2, "pct50": 10.0, "volx": 2.13, "hi52": 276.04, "lo52": 186.16, "date": "2026-11-06", "spark": [218.37, 210.93, 213.14, 207.12, 206.91, 205.97, 200.07, 193.55, 195.35, 193.71, 197.6, 197.49, 207.6, 208.33, 215.13, 216.56, 216.97, 219.17, 216.28, 213.86, 220.43, 219.76, 215.34, 217.43, 214.27, 214.68, 219.24, 224.54, 232.18, 236.94], "signals": [{"k": "rsi_high", "label": "تشبّع شرائي RSI 70", "dir": "down"}, {"k": "vol", "label": "حجم تداول ⁦×2.1⁩ من المتوسط", "dir": "up"}]}, {"sym": "7020", "ticker": "7020.SR", "name": "موبايلي", "mkt": "SA", "price": 520.18, "chg": 1.7, "rsi": 64.6, "pct50": 3.8, "volx": 3.23, "hi52": 546.94, "lo52": 301.15, "date": "2026-11-06", "spark": [518.64, 541.4, 541.53, 539.87, 529.11, 519.63, 505.54, 490.35, 497.19, 497.79, 501.2, 487.86, 471.21, 457.18, 471.2, 481.41, 470.69, 472.18, 474.27, 466.69, 462.01, 470.58, 477.27, 485.69, 489.22, 490.99, 496.13, 495.51, 511.46, 520.18], "signals": [{"k": "vol", "label": "حجم تداول ⁦×3.2⁩ من المتوسط", "dir": "up"}]}, {"sym": "1080", "ticker": "1080.SR", "name": "البنك العربي", "mkt": "SA", "price": 565.53, "chg": -3.5, "rsi": 51.5, "pct50": 4.0, "volx": 0.91, "hi52": 605.51, "lo52": 346.13, "date": "2026-11-06", "spark": [539.98, 542.2, 533.64, 544.35, 544.49, 554.0, 548.64, 543.46, 545.63, 556.87, 545.96, 542.09, 538.94, 537.95, 535.25, 546.73, 554.95, 556.72, 566.4, 578.09, 573.62, 568.11, 576.5, 599.52, 577.29, 572.78, 582.14, 575.78, 586.04, 565.53], "signals": [{"k": "move", "label": "حركة قوية ⁦-3.5%⁩", "dir": "down"}]}, {"sym": "7203", "ticker": "7203.SR", "name": "علم", "mkt": "SA", "price": 49.74, "chg": -2.21, "rsi": 35.6, "pct50": -6.6, "volx": 0.84, "hi52": 56.08, "lo52": 39.36, "date": "2026-11-06", "spark": [53.72, 52.23, 53.37, 55.49, 55.52, 54.71, 54.11, 53.48, 53.83, 54.77, 54.06, 53.74, 53.14, 54.2, 55.13, 54.32, 54.03, 54.18, 52.53, 52.04, 52.16, 50.91, 51.1, 51.13, 50.64, 51.55, 50.72, 51.09, 50.87, 49.74], "signals": []}, {"sym": "2280", "ticker": "2280.SR", "name": "المراعي", "mkt": "SA", "price": 94.74, "chg": 0.65, "rsi": 63.6, "pct50": 10.5, "volx": 1.05, "hi52": 132.6, "lo52": 78.02, "date": "2026-11-06", "spark": [87.59, 85.49, 85.94, 86.63, 83.85, 83.39, 84.23, 86.79, 89.35, 88.77, 88.24, 87.49, 87.84, 89.2, 87.52, 87.23, 86.3, 85.08, 84.29, 87.12, 89.91, 92.33, 89.58, 90.07, 94.08, 94.79, 93.56, 94.58, 94.13, 94.74], "signals": []}, {"sym": "1140", "ticker": "1140.SR", "name": "بنك البلاد", "mkt": "SA", "price": 204.58, "chg": 4.28, "rsi": 74.4, "pct50": 18.4, "volx": 0.74, "hi52": 198.56, "lo52": 119.49, "date": "2026-11-06", "spark": [160.22, 161.77, 163.81, 165.04, 168.08, 174.01, 179.67, 180.23, 176.96, 180.86, 181.47, 184.24, 183.32, 186.4, 182.99, 183.81, 179.7, 186.57, 185.99, 179.44, 183.85, 187.36, 192.31, 188.78, 190.37, 195.21, 194.9, 196.59, 196.17, 204.58], "signals": [{"k": "move", "label": "حركة قوية ⁦+4.3%⁩", "dir": "up"}, {"k": "rsi_high", "label": "تشبّع شرائي RSI 74", "dir": "down"}, {"k": "hi52", "label": "قمة جديدة لـ 52 أسبوعًا", "dir": "up"}]}, {"sym": "4030", "ticker": "4030.SR", "name": "البحري", "mkt": "SA", "price": 260.07, "chg": 2.99, "rsi": 72.5, "pct50": 12.1, "volx": 2.93, "hi52": 255.05, "lo52": 152.2, "date": "2026-11-06", "spark": [217.9, 217.17, 222.03, 215.48, 218.51, 217.61, 221.41, 223.12, 219.33, 221.85, 221.91, 225.76, 234.05, 233.44, 240.71, 240.52, 243.43, 244.51, 241.81, 242.62, 240.92, 243.65, 239.29, 235.4, 239.39, 241.98, 244.74, 247.53, 252.52, 260.07], "signals": [{"k": "rsi_high", "label": "تشبّع شرائي RSI 72", "dir": "down"}, {"k": "hi52", "label": "قمة جديدة لـ 52 أسبوعًا", "dir": "up"}, {"k": "vol", "label": "حجم تداول ⁦×2.9⁩ من المتوسط", "dir": "up"}]}, {"sym": "7202", "ticker": "7202.SR", "name": "حلول من إس تي سي", "mkt": "SA", "price": 255.9, "chg": 2.45, "rsi": 42.9, "pct50": -5.7, "volx": 1.39, "hi52": 303.85, "lo52": 207.54, "date": "2026-11-06", "spark": [276.81, 277.33, 281.21, 276.48, 273.19, 282.51, 284.16, 283.29, 278.75, 276.2, 277.43, 271.48, 271.31, 270.1, 260.75, 260.84, 266.71, 264.67, 263.69, 264.97, 262.14, 254.06, 254.23, 252.23, 249.34, 255.7, 256.25, 252.86, 249.77, 255.9], "signals": []}, {"sym": "2223", "ticker": "2223.SR", "name": "لوبريف", "mkt": "SA", "price": 370.68, "chg": -0.72, "rsi": 52.4, "pct50": 2.0, "volx": 0.6, "hi52": 389.29, "lo52": 284.23, "date": "2026-11-06", "spark": [357.33, 363.24, 358.81, 364.29, 366.25, 367.86, 368.26, 363.9, 373.38, 374.74, 385.44, 379.79, 369.04, 378.85, 371.55, 372.79, 370.78, 370.21, 368.49, 361.79, 354.57, 356.31, 352.21, 363.55, 364.45, 374.03, 371.26, 376.96, 373.35, 370.68], "signals": []}, {"sym": "4300", "ticker": "4300.SR", "name": "دار الأركان", "mkt": "SA", "price": 596.62, "chg": -3.02, "rsi": 46.0, "pct50": 0.7, "volx": 0.78, "hi52": 659.79, "lo52": 319.85, "date": "2026-11-06", "spark": [617.48, 616.15, 602.08, 605.37, 594.55, 596.55, 609.77, 606.0, 599.85, 609.82, 603.49, 604.27, 604.39, 592.59, 604.04, 594.25, 605.29, 610.92, 601.23, 599.15, 609.82, 608.41, 633.93, 624.71, 639.55, 622.99, 621.82, 634.42, 615.2, 596.62], "signals": [{"k": "move", "label": "حركة قوية ⁦-3.0%⁩", "dir": "down"}]}, {"sym": "8010", "ticker": "8010.SR", "name": "التعاونية", "mkt": "SA", "price": 77.6, "chg": 4.4, "rsi": 51.2, "pct50": -3.2, "volx": 1.81, "hi52": 86.78, "lo52": 48.81, "date": "2026-11-06", "spark": [83.83, 81.55, 80.48, 81.1, 82.07, 82.52, 80.47, 82.12, 82.06, 80.08, 81.72, 81.68, 79.2, 75.71, 75.59, 74.85, 75.3, 75.59, 74.66, 75.31, 75.7, 74.41, 75.53, 75.89, 75.74, 76.3, 75.32, 74.38, 74.33, 77.6], "signals": [{"k": "move", "label": "حركة قوية ⁦+4.4%⁩", "dir": "up"}]}]};
+const $ = s => document.querySelector(s);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const NS = "http://www.w3.org/2000/svg";
+const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const fmtPct = v => (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+const dirCls = v => v > 0 ? "up" : v < 0 ? "down" : "muted";
+const fmtPx = v => v >= 1000 ? v.toLocaleString("en-US", {maximumFractionDigits: 1}) : v.toFixed(2);
+
+let filter = "all", sortBy = "move";
+const S = DATA.stocks;
+
+/* ---- header & markets */
+$("#upd").textContent = DATA.updated.replace("T", " ").slice(0, 16);
+$("#demo").hidden = !DATA.demo;
+for (const k of ["SA", "US"]) {
+  const m = DATA.markets[k], xs = S.filter(s => s.mkt === k);
+  const adv = xs.filter(s => s.chg > 0).length, dec = xs.filter(s => s.chg < 0).length;
+  const avg = xs.reduce((a, s) => a + s.chg, 0) / (xs.length || 1);
+  const box = el("div", "mkt");
+  const top = el("div", "mkt-top");
+  top.append(el("span", "mkt-name", m.name), el("span", "pill" + (m.open ? " live" : ""), m.open ? "مفتوح" : "مغلق"));
+  const a = el("div", "avg num " + dirCls(avg), fmtPct(avg));
+  const br = el("div", "breadth"); const u = el("span"), d = el("span");
+  u.style.width = (adv / (xs.length || 1) * 100) + "%"; d.style.width = (dec / (xs.length || 1) * 100) + "%"; br.append(u, d);
+  const bc = el("div", "bcount"); bc.append(el("span", "", `↑ ${adv} صاعد`), el("span", "", `${dec} هابط ↓`));
+  box.append(top, a, el("div", "hint", "متوسط تغيّر اليوم"), br, bc);
+  $("#mkts").append(box);
+}
+
+/* ---- radar */
+function drawRadar() {
+  const W = 340, H = 260, P = {l: 26, r: 10, t: 12, b: 22};
+  const vis = visible();
+  const maxAbs = Math.max(4, ...S.map(s => Math.abs(s.chg))) * 1.1;
+  const x = r => P.l + (r / 100) * (W - P.l - P.r);
+  const y = c => P.t + (1 - (c + maxAbs) / (2 * maxAbs)) * (H - P.t - P.b);
+  const svg = svgEl("svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "خريطة الأسهم حسب RSI وتغيّر اليوم", direction: "ltr"});
+  svg.append(svgEl("rect", {x: x(0), y: P.t, width: x(30) - x(0), height: H - P.t - P.b, fill: "var(--up)", opacity: .06}));
+  svg.append(svgEl("rect", {x: x(70), y: P.t, width: x(100) - x(70), height: H - P.t - P.b, fill: "var(--down)", opacity: .06}));
+  for (const r of [30, 50, 70]) {
+    svg.append(svgEl("line", {x1: x(r), x2: x(r), y1: P.t, y2: H - P.b, stroke: "var(--line)", "stroke-dasharray": r === 50 ? "" : "3 3"}));
+    const t = svgEl("text", {x: x(r), y: H - 8, "text-anchor": "middle"}); t.textContent = r; svg.append(t);
+  }
+  svg.append(svgEl("line", {x1: P.l, x2: W - P.r, y1: y(0), y2: y(0), stroke: "var(--line)"}));
+  const step = maxAbs > 8 ? 4 : 2;
+  for (let c = -Math.floor(maxAbs / step) * step; c <= maxAbs; c += step) {
+    const t = svgEl("text", {x: P.l - 4, y: y(c) + 3, "text-anchor": "end"}); t.textContent = (c > 0 ? "+" : "") + c; svg.append(t);
+  }
+  const lb = svgEl("text", {x: x(15), y: P.t + 10, "text-anchor": "middle"}); lb.textContent = "تشبّع بيعي"; lb.setAttribute("style", "font-family:var(--sans)"); svg.append(lb);
+  const lh = svgEl("text", {x: x(85), y: P.t + 10, "text-anchor": "middle"}); lh.textContent = "تشبّع شرائي"; lh.setAttribute("style", "font-family:var(--sans)"); svg.append(lh);
+
+  const g = svgEl("g", {class: filter === "all" ? "" : "dimmed"});
+  const order = [...S].sort((a, b) => b.volx - a.volx);
+  for (const s of order) {
+    const cx = x(Math.min(99, Math.max(1, s.rsi))), cy = y(s.chg);
+    const r = 3.5 + Math.min(s.volx, 4) * 2;
+    const col = s.chg >= 0 ? "var(--up)" : "var(--down)";
+    const dot = svgEl("g", {class: "dot" + (vis.includes(s) ? " on" : ""), tabindex: 0, role: "button", "aria-label": `${s.sym} ${fmtPct(s.chg)}`});
+    if (s.signals.length) {
+      dot.append(svgEl("circle", {cx, cy, r: r + 4, fill: "none", stroke: "var(--accent)", "stroke-width": 1.2, opacity: .8}));
+    }
+    dot.append(svgEl("circle", {class: "core", cx, cy, r, fill: col, "fill-opacity": .55, stroke: col, "stroke-width": 1}));
+    if (s.signals.length || Math.abs(s.chg) >= 2.5) {
+      const t = svgEl("text", {x: cx, y: cy - r - 5, "text-anchor": "middle"}); t.textContent = s.sym;
+      t.setAttribute("style", "fill:var(--fg);font-weight:600"); dot.append(t);
+    }
+    dot.addEventListener("click", () => openSheet(s));
+    dot.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet(s); } });
+    g.append(dot);
+  }
+  svg.append(g);
+  $("#radar").replaceChildren(svg);
+}
+
+/* ---- filtering */
+function visible() {
+  return S.filter(s => filter === "all" ? true : filter === "sig" ? s.signals.length > 0 : s.mkt === filter);
+}
+
+/* ---- feed */
+function drawFeed() {
+  const items = visible().flatMap(s => s.signals.map(g => ({s, g})));
+  const rank = {golden: 0, death: 0, hi52: 1, lo52: 1, move: 2, vol: 3, x50_up: 4, x50_down: 4, rsi_low: 5, rsi_high: 5};
+  items.sort((a, b) => (rank[a.g.k] ?? 9) - (rank[b.g.k] ?? 9) || Math.abs(b.s.chg) - Math.abs(a.s.chg));
+  $("#sigcount").textContent = items.length ? items.length + " إشارة" : "";
+  const feed = $("#feed"); feed.replaceChildren();
+  if (!items.length) { feed.append(el("div", "empty", "لا توجد إشارات في هذا الفلتر الآن. سيظهر هنا أي سهم يحقق شرطًا من شروط المسح.")); return; }
+  for (const {s, g} of items.slice(0, 12)) {
+    const a = el("div", "alert"); a.tabIndex = 0; a.setAttribute("role", "button");
+    const bar = el("span", "bar"); bar.style.background = g.dir === "up" ? "var(--up)" : "var(--down)";
+    const mid = el("div"); const t = el("div");
+    t.append(el("span", "t", s.sym + " "), el("span", "muted", s.name));
+    mid.append(t, el("div", "why", g.label));
+    const px = el("div", "px"); px.append(el("div", "p num", fmtPx(s.price)), el("div", "c num " + dirCls(s.chg), fmtPct(s.chg)));
+    a.append(bar, mid, px);
+    a.addEventListener("click", () => openSheet(s));
+    a.addEventListener("keydown", e => { if (e.key === "Enter") openSheet(s); });
+    feed.append(a);
+  }
+}
+
+/* ---- list */
+function spark(vals, up) {
+  const w = 58, h = 26, mn = Math.min(...vals), mx = Math.max(...vals), span = mx - mn || 1;
+  const pts = vals.map((v, i) => [i / (vals.length - 1) * w, h - 2 - (v - mn) / span * (h - 4)]);
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const col = up ? "var(--up)" : "var(--down)";
+  const svg = svgEl("svg", {class: "spark", viewBox: `0 0 ${w} ${h}`, "aria-hidden": "true"});
+  svg.append(svgEl("path", {d: d + ` L ${w} ${h} L 0 ${h} Z`, fill: col, opacity: .12}));
+  svg.append(svgEl("path", {d, fill: "none", stroke: col, "stroke-width": 1.4, "stroke-linejoin": "round"}));
+  const last = pts[pts.length - 1]; svg.append(svgEl("circle", {cx: last[0], cy: last[1], r: 2.2, fill: col}));
+  return svg;
+}
+function drawList() {
+  const xs = [...visible()];
+  const sorters = {move: (a, b) => Math.abs(b.chg) - Math.abs(a.chg), up: (a, b) => b.chg - a.chg, down: (a, b) => a.chg - b.chg,
+                   rsi: (a, b) => b.rsi - a.rsi, vol: (a, b) => b.volx - a.volx};
+  xs.sort(sorters[sortBy]);
+  const list = $("#list"); list.replaceChildren();
+  if (!xs.length) { list.append(el("div", "empty", "لا توجد أسهم في هذا الفلتر.")); return; }
+  const hd = el("div", "lhead");
+  hd.append(el("span", "", "السهم"), el("span", "", "30 يوم"), el("span", "", "السعر"), el("span", "", "التغيّر"));
+  list.append(hd);
+  for (const s of xs) {
+    const r = el("button", "row"); r.type = "button";
+    const who = el("div", "who"); const sl = el("div", "s");
+    sl.append(el("span", "", s.sym), el("span", "flag", s.mkt === "SA" ? "SA" : "US"));
+    if (s.signals.length) sl.append(el("span", "sigdot"));
+    who.append(sl, el("div", "n", `${s.name} · RSI ${Math.round(s.rsi)} · حجم ×${s.volx.toFixed(1)}`));
+    const price = el("div", "cell"); price.append(el("span", "num", fmtPx(s.price)), el("small", "", DATA.markets[s.mkt].cur));
+    const chg = el("div", "cell c num " + dirCls(s.chg), fmtPct(s.chg));
+    r.append(who, spark(s.spark, s.spark[s.spark.length - 1] >= s.spark[0]), price, chg);
+    r.addEventListener("click", () => openSheet(s));
+    list.append(r);
+  }
+}
+
+/* ---- bottom sheet */
+let lastFocus = null;
+function openSheet(s) {
+  lastFocus = document.activeElement;
+  const cur = DATA.markets[s.mkt].cur, inn = $("#sheetin"); inn.replaceChildren();
+  const top = el("div", "sh-top"); const ttl = el("div");
+  const h = el("h3", "", s.sym); h.id = "sh-title";
+  ttl.append(h, el("div", "muted", `${s.name} · ${DATA.markets[s.mkt].name}`));
+  const x = el("button", "close", "×"); x.setAttribute("aria-label", "إغلاق"); x.addEventListener("click", closeSheet);
+  top.append(ttl, x);
+  const stats = el("div", "stats");
+  const stat = (lbl, val, cls) => { const b = el("div", "stat"); b.append(el("small", "", lbl), el("b", "num " + (cls || ""), val)); return b; };
+  stats.append(stat("السعر " + cur, fmtPx(s.price)), stat("تغيّر اليوم", fmtPct(s.chg), dirCls(s.chg)), stat("RSI 14", s.rsi.toFixed(0)),
+               stat("عن متوسط 50", s.pct50 == null ? "—" : fmtPct(s.pct50), dirCls(s.pct50 || 0)), stat("الحجم/المتوسط", "×" + s.volx.toFixed(2)),
+               stat("تاريخ البيانات", s.date.slice(5)));
+  const rg = el("div", "range");
+  const pos = Math.max(0, Math.min(100, (s.price - s.lo52) / ((s.hi52 - s.lo52) || 1) * 100));
+  const tr = el("div", "track"); const mk = el("i"); mk.style.left = `calc(${pos}% - 1.5px)`; tr.append(mk);
+  const ends = el("div", "bcount"); ends.append(el("span", "num", "أعلى " + fmtPx(s.hi52)), el("span", "num", "أدنى " + fmtPx(s.lo52)));
+  rg.append(el("span", "", "موقع السعر في نطاق 52 أسبوعًا"), tr, ends);
+  const sigs = el("div", "sigs");
+  if (s.signals.length) for (const g of s.signals) { const d = el("div", "sig", g.label); d.style.borderInlineStartColor = g.dir === "up" ? "var(--up)" : "var(--down)"; sigs.append(d); }
+  else sigs.append(el("div", "empty", "لا توجد إشارات على هذا السهم الآن."));
+  const links = el("div", "links");
+  const tv = s.mkt === "SA" ? `https://www.tradingview.com/symbols/TADAWUL-${s.sym}/` : `https://www.tradingview.com/symbols/${s.sym.replace("-", ".")}/`;
+  for (const [t, u] of [["الرسم البياني على TradingView", tv], ["Yahoo Finance", `https://finance.yahoo.com/quote/${s.ticker}`]]) {
+    const a = el("a", "", t); a.href = u; a.target = "_blank"; a.rel = "noopener"; links.append(a);
+  }
+  inn.append(top, stats, rg, sigs, links);
+  $("#sheet").hidden = false; $("#sheetbg").hidden = false; x.focus();
+}
+function closeSheet() { $("#sheet").hidden = true; $("#sheetbg").hidden = true; if (lastFocus) lastFocus.focus(); }
+$("#sheetbg").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#sheet").hidden) closeSheet(); });
+
+/* ---- controls */
+for (const b of document.querySelectorAll(".chip")) b.addEventListener("click", () => {
+  filter = b.dataset.f;
+  for (const o of document.querySelectorAll(".chip")) o.setAttribute("aria-pressed", String(o === b));
+  render();
+});
+$("#sort").addEventListener("change", e => { sortBy = e.target.value; drawList(); });
+function render() { drawRadar(); drawFeed(); drawList(); }
+render();
+</script>
+</body>
+</html>

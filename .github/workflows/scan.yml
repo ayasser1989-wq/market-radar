@@ -1,0 +1,46 @@
+name: رادار الأسواق
+
+on:
+  schedule:
+    # التوقيت هنا UTC (الرياض = UTC+3)
+    # السوق السعودي: الأحد–الخميس 10:00–15:20 بتوقيت الرياض
+    - cron: "*/15 7-12 * * 0-4"
+    # السوق الأمريكي: الاثنين–الجمعة (يغطي التوقيتين الصيفي والشتوي)
+    - cron: "*/15 13-21 * * 1-5"
+  workflow_dispatch: {}   # زر "Run workflow" للتشغيل اليدوي
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: تشغيل الماسح
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python scanner.py
+
+      - name: حفظ اللوحة
+        run: |
+          git config user.name "market-radar-bot"
+          git config user.email "market-radar-bot@users.noreply.github.com"
+          git add docs state.json
+          git diff --cached --quiet || git commit -m "تحديث المسح $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push
