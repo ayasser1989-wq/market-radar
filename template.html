@@ -111,6 +111,44 @@ select{background:var(--panel);color:var(--fg);border:1px solid var(--line);bord
 .sig{font-size:14px;padding:8px 10px;border-radius:8px;background:var(--panel);border-inline-start:3px solid var(--line)}
 .links{display:flex;gap:8px;flex-wrap:wrap}
 .links a{color:var(--accent);font-size:13px}
+/* trade setups */
+.setups{display:flex;flex-direction:column;gap:10px}
+.setup{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;text-align:inherit;color:inherit;font:inherit;width:100%}
+.setup:hover{background:var(--panel-2)}
+.setup:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ring{--p:0;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--sc,var(--up)) calc(var(--p)*1%),var(--line) 0);position:relative}
+.ring::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}
+.ring b{position:relative;font:600 15px var(--mono)}
+.su-main{min-width:0;display:flex;flex-direction:column;gap:6px}
+.su-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.su-top .t{font-weight:700}
+.su-top .n{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tag{font-size:11px;padding:1px 8px;border-radius:99px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);white-space:nowrap}
+.lvls{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lvl small{display:block;font-size:10px;color:var(--muted)}
+.lvl b{font:600 13px var(--mono)}
+.su-foot{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.bt{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.bt-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.bt-big{font:600 18px var(--mono)}
+.bt-rows{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:4px 12px;font-size:12px}
+.bt-rows span:nth-child(4n+1){color:var(--muted)}
+.bt-rows .h{color:var(--muted);font-size:10px}
+.scorechip{font:600 10px var(--mono);color:#1a0712;background:var(--accent);border-radius:4px;padding:0 5px}
+/* plan in sheet */
+.plan{display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.plan-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.plan-h h4{margin:0;font-size:15px}
+.ladder{position:relative;height:60px;direction:ltr;margin:4px 18px 0}
+.ladder .bar{position:absolute;top:24px;height:8px;border-radius:4px}
+.ladder .mk{position:absolute;top:18px;width:2px;height:20px;background:var(--fg);transform:translateX(-1px)}
+.ladder .tl{position:absolute;top:0;font:500 10px var(--sans);transform:translateX(-50%);white-space:nowrap;color:var(--muted)}
+.ladder .lb{position:absolute;top:42px;font:600 11px var(--mono);transform:translateX(-50%);white-space:nowrap}
+.ladder .lb.e{color:var(--fg)}
+.why{display:flex;flex-wrap:wrap;gap:6px}
+.why span{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.note{font-size:12px;color:var(--muted);line-height:1.6}
 .tv-box{height:min(420px,52vh);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);direction:ltr}
 footer{font-size:12px;color:var(--muted);line-height:1.7;border-top:1px solid var(--line);padding-top:12px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -127,6 +165,11 @@ footer{font-size:12px;color:var(--muted);line-height:1.7;border-top:1px solid va
   <div class="mkts" id="mkts"></div>
 
   <section>
+    <div class="sec-head"><h2>فرص الصفقات</h2><span class="hint" id="acct"></span></div>
+    <div class="setups" id="setups"></div>
+  </section>
+
+  <section>
     <div class="sec-head"><h2>خريطة الرادار</h2><span class="hint">أفقي: RSI · عمودي: تغيّر اليوم · الحجم: نشاط التداول</span></div>
     <div class="radar" id="radar"></div>
   </section>
@@ -136,6 +179,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.7;border-top:1px solid va
     <button class="chip" id="f-us" data-f="US" aria-pressed="false">أمريكا</button>
     <button class="chip" id="f-sa" data-f="SA" aria-pressed="false">السعودية</button>
     <button class="chip" id="f-sig" data-f="sig" aria-pressed="false">بإشارات فقط</button>
+    <button class="chip" id="f-setup" data-f="setup" aria-pressed="false">فرص صفقات</button>
   </div>
 
   <section>
@@ -157,7 +201,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.7;border-top:1px solid va
     <div class="list" id="list"></div>
   </section>
 
-  <footer>الأسعار من Yahoo Finance ومتأخرة حوالي 15 دقيقة. الإشارات أدوات فرز فنية وليست توصية شراء أو بيع. الصفحة تتحدّث تلقائيًا كل 5 دقائق.</footer>
+  <footer>الخطط تُحسب آليًا من المؤشرات الفنية وتفترض الشراء فقط. الأسعار من Yahoo Finance ومتأخرة حوالي 15 دقيقة. الإشارات أدوات فرز فنية وليست توصية شراء أو بيع. الصفحة تتحدّث تلقائيًا كل 5 دقائق.</footer>
 </div>
 
 <div class="sheet-bg" id="sheetbg" hidden></div>
@@ -241,7 +285,8 @@ function drawRadar() {
 
 /* ---- filtering */
 function visible() {
-  return S.filter(s => filter === "all" ? true : filter === "sig" ? s.signals.length > 0 : s.mkt === filter);
+  return S.filter(s => filter === "all" ? true : filter === "sig" ? s.signals.length > 0
+    : filter === "setup" ? !!s.plan.setup : s.mkt === filter);
 }
 
 /* ---- feed */
@@ -292,7 +337,8 @@ function drawList() {
     const r = el("button", "row"); r.type = "button";
     const who = el("div", "who"); const sl = el("div", "s");
     sl.append(el("span", "", s.sym), el("span", "flag", s.mkt === "SA" ? "SA" : "US"));
-    if (s.signals.length) sl.append(el("span", "sigdot"));
+    if (s.plan.setup) sl.append(el("span", "scorechip num", s.plan.score));
+    else if (s.signals.length) sl.append(el("span", "sigdot"));
     who.append(sl, el("div", "n", `${s.name} · RSI ${Math.round(s.rsi)} · حجم ×${s.volx.toFixed(1)}`));
     const price = el("div", "cell"); price.append(el("span", "num", fmtPx(s.price)), el("small", "", DATA.markets[s.mkt].cur));
     const chg = el("div", "cell c num " + dirCls(s.chg), fmtPct(s.chg));
@@ -344,7 +390,7 @@ function openSheet(s) {
     studies: ["STD;RSI", "STD;SMA"], support_host: "https://www.tradingview.com"
   });
   wrap.append(inner, sc); chart.append(wrap);
-  inn.append(top, chart, stats, rg, sigs, links);
+  inn.append(top, planCard(s), chart, stats, rg, sigs, links);
   $("#sheet").hidden = false; $("#sheetbg").hidden = false; x.focus();
 }
 function closeSheet() { $("#sheet").hidden = true; $("#sheetbg").hidden = true; if (lastFocus) lastFocus.focus(); }
@@ -358,7 +404,86 @@ for (const b of document.querySelectorAll(".chip")) b.addEventListener("click", 
   render();
 });
 $("#sort").addEventListener("change", e => { sortBy = e.target.value; drawList(); });
-function render() { drawRadar(); drawFeed(); drawList(); }
+/* ---- trade setups */
+const scoreCol = v => v >= 80 ? "var(--up)" : v >= 65 ? "var(--warn)" : "var(--down)";
+const sar = v => Math.round(v).toLocaleString("en-US");
+function ring(v) { const r = el("div", "ring"); r.style.setProperty("--p", v); r.style.setProperty("--sc", scoreCol(v)); r.append(el("b", "num", v)); return r; }
+const iso = t => "\u2066" + t + "\u2069";
+function histTxt(h) { return h && h.n ? `تاريخيًا ${h.n} صفقة · نجاح ${iso(h.win + "%")} · متوسط ${iso((h.avg_r > 0 ? "+" : "") + h.avg_r + "R")}` : "لا توجد صفقات سابقة كافية"; }
+function drawSetups() {
+  const A = DATA.account;
+  $("#acct").textContent = `رأس المال ${sar(A.capital_sar)} ر.س · مخاطرة ${A.risk_pct}% للصفقة`;
+  const xs = visible().filter(s => s.plan.setup).sort((a, b) => b.plan.score - a.plan.score);
+  const box = $("#setups"); box.replaceChildren();
+  if (!xs.length) box.append(el("div", "empty", `لا يوجد سهم يحقق ${DATA.min_score} درجة أو أكثر الآن. الفرص تظهر هنا عندما يجتمع الاتجاه والزخم والحجم.`));
+  for (const s of xs.slice(0, 8)) {
+    const st = s.plan.setup, cur = DATA.markets[s.mkt].cur;
+    const b = el("button", "setup"); b.type = "button";
+    const main = el("div", "su-main");
+    const top = el("div", "su-top"); const left = el("div"); left.style.minWidth = "0"; left.style.display = "flex"; left.style.gap = "8px"; left.style.alignItems = "baseline";
+    left.append(el("span", "t", s.sym), el("span", "n", s.name)); top.append(left, el("span", "tag", st.name));
+    const lv = el("div", "lvls");
+    const L = (lbl, v, cls) => { const d = el("div", "lvl"); d.append(el("small", "", lbl), el("b", "num " + (cls || ""), fmtPx(v))); return d; };
+    lv.append(L("دخول " + cur, st.entry), L("وقف", st.stop, "down"), L("هدف 1", st.t1, "up"));
+    const ft = el("div", "su-foot");
+    ft.append(el("span", "", `${st.shares} سهم · أقصى خسارة ${sar(st.max_loss_sar)} ر.س`), el("span", "", histTxt(st.hist)));
+    main.append(top, lv, ft);
+    b.append(ring(s.plan.score), main);
+    b.addEventListener("click", () => openSheet(s));
+    box.append(b);
+  }
+  const bt = DATA.backtest, all = bt.all;
+  if (all && all.n) {
+    const w = el("div", "bt");
+    const hd = el("div", "bt-head");
+    const l = el("div"); l.append(el("div", "hint", "اختبار نفس القواعد على آخر سنتين (كل الأسهم)"));
+    const big = el("div", "bt-big num " + (all.avg_r > 0 ? "up" : "down"), `${all.win}% · ${all.avg_r > 0 ? "+" : ""}${all.avg_r}R`);
+    hd.append(l, big);
+    const rows = el("div", "bt-rows");
+    for (const t of ["النمط", "صفقات", "نجاح", "متوسط"]) rows.append(el("span", "h", t));
+    for (const k of ["breakout", "pullback", "trend", "oversold"]) {
+      const v = bt[k]; if (!v) continue;
+      rows.append(el("span", "", v.name), el("span", "num", v.n), el("span", "num", v.win + "%"), el("span", "num " + (v.avg_r > 0 ? "up" : "down"), (v.avg_r > 0 ? "+" : "") + v.avg_r + "R"));
+    }
+    w.append(hd, rows, el("div", "note", "R = مقدار المخاطرة في الصفقة. متوسط موجب يعني أن القواعد ربحت تاريخيًا بعد احتساب الخسائر. النتائج السابقة لا تضمن المستقبل."));
+    box.append(w);
+  }
+}
+
+function planCard(s) {
+  const p = s.plan, st = p.setup, cur = DATA.markets[s.mkt].cur;
+  const c = el("div", "plan");
+  const h = el("div", "plan-h"); const ht = el("div");
+  const biasTxt = {up: "الاتجاه صاعد", down: "الاتجاه هابط", flat: "الاتجاه محايد"}[p.bias];
+  ht.append(el("h4", "", st ? "خطة الصفقة · " + st.name : "لا توجد فرصة صفقة الآن"),
+            el("div", "hint", st ? biasTxt : `${biasTxt} · المطلوب ${DATA.min_score} درجة أو أكثر`));
+  h.append(ht, ring(p.score)); c.append(h);
+  if (st) {
+    const lo = st.stop - st.risk * 0.3, hi = st.t2 + st.risk * 0.3, X = v => ((v - lo) / (hi - lo) * 100);
+    const lad = el("div", "ladder");
+    const red = el("div", "bar"); red.style.left = X(st.stop) + "%"; red.style.width = (X(st.entry) - X(st.stop)) + "%"; red.style.background = "color-mix(in srgb,var(--down) 55%,transparent)";
+    const grn = el("div", "bar"); grn.style.left = X(st.entry) + "%"; grn.style.width = (X(st.t2) - X(st.entry)) + "%"; grn.style.background = "linear-gradient(90deg,color-mix(in srgb,var(--up) 35%,transparent),var(--up))";
+    lad.append(red, grn);
+    for (const [v, t, cls] of [[st.stop, "وقف", "down"], [st.entry, "دخول", "e"], [st.t1, "هدف 1", "up"], [st.t2, "هدف 2", "up"]]) {
+      const m = el("div", "mk"); m.style.left = X(v) + "%"; lad.append(m);
+      const tl = el("div", "tl", t); tl.style.left = X(v) + "%"; lad.append(tl);
+      const lb = el("div", "lb num " + cls, fmtPx(v)); lb.style.left = X(v) + "%"; lad.append(lb);
+    }
+    const stats = el("div", "stats");
+    const stat = (lbl, val, cls) => { const b = el("div", "stat"); b.append(el("small", "", lbl), el("b", "num " + (cls || ""), val)); return b; };
+    stats.append(stat("الكمية (سهم)", st.shares), stat("التكلفة ر.س", sar(st.cost_sar)), stat("أقصى خسارة ر.س", sar(st.max_loss_sar), "down"),
+                 stat("المخاطرة/سهم", fmtPx(st.risk)), stat("عائد/مخاطرة", "1:" + st.rr), stat("ربح الهدف1 ر.س", sar(st.max_loss_sar * st.rr), "up"));
+    c.append(lad, stats, el("div", "note", histTxt(st.hist) + " على هذا السهم بنفس النمط." + (st.capped ? " الكمية مقيّدة بالحد الأقصى لحجم المركز." : "") +
+      " بعد الوصول للهدف الأول: بِع نصف الكمية وانقل الوقف لسعر الدخول."));
+  } else {
+    c.append(el("div", "note", histTxt(p.hist) + " على هذا السهم خلال سنتين."));
+  }
+  const why = el("div", "why"); for (const w of p.why) why.append(el("span", "", "✓ " + w));
+  if (p.why.length) c.append(why);
+  return c;
+}
+
+function render() { drawSetups(); drawRadar(); drawFeed(); drawList(); }
 render();
 </script>
 </body>

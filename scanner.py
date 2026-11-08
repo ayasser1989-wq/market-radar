@@ -20,7 +20,8 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from watchlist import RULES, SA, US
+import trader
+from watchlist import ACCOUNT, RULES, SA, US
 
 ROOT = Path(__file__).parent
 DOCS = ROOT / "docs"
@@ -46,7 +47,7 @@ def fetch_history(tickers):
         return demo_history(tickers)
     import yfinance as yf
 
-    raw = yf.download(tickers, period="1y", interval="1d", group_by="ticker",
+    raw = yf.download(tickers, period="2y", interval="1d", group_by="ticker",
                       auto_adjust=False, threads=True, progress=False)
     out = {}
     for t in tickers:
@@ -62,17 +63,18 @@ def fetch_history(tickers):
 def demo_history(tickers):
     """بيانات عشوائية لاختبار الكود فقط — ليست أسعارًا حقيقية."""
     rng = np.random.default_rng(7)
-    idx = pd.bdate_range(end=datetime.now(), periods=260)
+    idx = pd.bdate_range(end=datetime.now(), periods=520)
     out = {}
     for i, t in enumerate(tickers):
         drift = rng.normal(0.0004, 0.001)
         rets = rng.normal(drift, 0.018, len(idx))
         rets[-1] = rng.normal(0, 0.03)            # يوم أخير أكثر تقلبًا لإظهار إشارات
         close = 50 * (1 + i % 7) * np.exp(np.cumsum(rets))
+        rng_hl = np.abs(rng.normal(0.012, 0.005, len(idx)))
         vol = rng.lognormal(15, 0.35, len(idx))
         vol[-1] *= rng.choice([1, 1, 1, 2.6])
-        out[t] = pd.DataFrame({"Close": close, "High": close * 1.01,
-                               "Low": close * 0.99, "Volume": vol}, index=idx)
+        out[t] = pd.DataFrame({"Close": close, "High": close * (1 + rng_hl),
+                               "Low": close * (1 - rng_hl), "Volume": vol}, index=idx)
     return out
 
 
@@ -136,6 +138,7 @@ def analyse(sym, name, mkt, df):
         "date": c.index[-1].strftime("%Y-%m-%d"),
         "spark": [round(float(x), 2) for x in c.iloc[-30:]],
         "signals": [{"k": k, "label": lbl, "dir": d} for k, lbl, d in sig],
+        "plan": trader.plan(df, mkt),
     }
 
 
@@ -172,7 +175,7 @@ def send_telegram(text):
 def notify(stocks, open_now, state, now_utc):
     today = now_utc.astimezone(RIYADH).strftime("%Y-%m-%d")
     sent = {k: v for k, v in state["sent"].items() if v >= (now_utc - timedelta(days=3)).strftime("%Y-%m-%d")}
-    lines = []
+    lines, setups = [], []
     for s in stocks:
         if not (open_now[s["mkt"]] or os.environ.get("FORCE_ALERTS")):
             continue
@@ -185,17 +188,40 @@ def notify(stocks, open_now, state, now_utc):
             cur = MARKETS[s["mkt"]]["currency"]
             lines.append(f"{arrow} <b>{s['sym']}</b> {s['name']} — {g['label']}\n"
                          f"    السعر {s['price']} {cur} (\u2066{s['chg']:+.2f}%\u2069)")
+        st = s["plan"]["setup"]
+        key = f"{today}:{s['ticker']}:setup:{st['type']}" if st else None
+        if st and key not in sent:
+            sent[key] = today
+            cur = MARKETS[s["mkt"]]["currency"]
+            h = st["hist"]
+            hist_txt = f"\n    تاريخيًا: {h['n']} صفقة، نجاح {h['win']}%" if h["n"] else ""
+            setups.append(f"🎯 <b>{s['sym']}</b> {s['name']} — {st['name']} · درجة {s['plan']['score']}\n"
+                          f"    دخول {st['entry']} · وقف {st['stop']} · هدف {st['t1']} / {st['t2']} {cur}\n"
+                          f"    الكمية {st['shares']} سهم (أقصى خسارة {st['max_loss_sar']:,} ر.س)" + hist_txt)
     state["sent"] = sent
+    lines = setups + lines
     if lines:
         page = os.environ.get("DASHBOARD_URL", "")
         msg = "📡 <b>رادار الأسواق</b>\n\n" + "\n\n".join(lines[:30])
         if page:
             msg += f"\n\n<a href=\"{page}\">افتح اللوحة</a>"
         send_telegram(msg)
-    print(f"[alerts] تنبيهات جديدة: {len(lines)}")
+    print(f"[alerts] تنبيهات جديدة: {len(lines)} (منها {len(setups)} فرصة صفقة)")
 
 
 # ---------------------------------------------------------------- اللوحة
+
+def backtest_summary(stocks):
+    by_type = {}
+    for s in stocks:
+        for t, r in s["plan"].pop("trades"):
+            by_type.setdefault(t, []).append((t, r))
+    allt = [x for v in by_type.values() for x in v]
+    out = {"all": trader.summarise(allt)}
+    for t, v in by_type.items():
+        out[t] = {**trader.summarise(v), "name": trader.SETUP_NAMES[t]}
+    return out
+
 
 def render(stocks, open_now, now_utc):
     data = {
@@ -203,6 +229,9 @@ def render(stocks, open_now, now_utc):
         "demo": bool(os.environ.get("DEMO")),
         "markets": {k: {"name": m["name"], "open": open_now[k], "cur": m["currency"]}
                     for k, m in MARKETS.items()},
+        "account": ACCOUNT,
+        "min_score": RULES["min_setup_score"],
+        "backtest": backtest_summary(stocks),
         "stocks": stocks,
     }
     DOCS.mkdir(exist_ok=True)
@@ -235,7 +264,8 @@ def main():
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=1))
     render(stocks, open_now, now_utc)
     n_sig = sum(len(s["signals"]) for s in stocks)
-    print(f"[done] {len(stocks)} سهم، {n_sig} إشارة، الأسواق المفتوحة: {[k for k, v in open_now.items() if v]}")
+    n_set = sum(1 for s in stocks if s["plan"]["setup"])
+    print(f"[done] {len(stocks)} سهم، {n_sig} إشارة، {n_set} فرصة صفقة، الأسواق المفتوحة: {[k for k, v in open_now.items() if v]}")
 
 
 if __name__ == "__main__":
